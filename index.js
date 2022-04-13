@@ -4,12 +4,25 @@ const app = express();
 const fs = require('fs');
 const { promisify } = require('util');
 const asyncStat = promisify(fs.stat)
+const path = require('path')
+const filesFolder = path.join(__dirname,'files')
+
+function checkFolder(){
+ try{
+        if(!fs.existsSync(filesFolder)){
+            fs.mkdirSync(filesFolder)
+        }
+     }catch(err){
+     throw err
+     }
+}
 
 app.use(express.urlencoded({ extended: true }))
 app.use(bodyParser.json())
 
 app.get('/api/files', function (req, res) {
-    fs.readdir(__dirname,(error,files)=>{
+    checkFolder()
+    fs.readdir(filesFolder,(error,files)=>{
         if(error){
             if(error.code==='ENOENT'){
                 res.status(400).json({
@@ -37,7 +50,9 @@ async function getTime(fileName){
 }
 
 app.get('/api/files/:filename',(req, res) =>{
-    fs.readFile(req.params['filename'],(error,data)=>{
+    checkFolder()
+    const filePath = path.join(filesFolder,req.params['filename'])
+    fs.readFile(filePath,(error,data)=>{
         if(error){
             if(error.code==='ENOENT'){
                 res.status(400).json({
@@ -50,13 +65,12 @@ app.get('/api/files/:filename',(req, res) =>{
                 }).end();
             }
         }else{
-            let extension = req.params['filename'].split('.')[1]
-            getTime(req.params['filename']).then((val) =>
+            getTime(filePath).then((val) =>
             res.status(200).json({
                 "message": "success",
                 "filename": `${req.params['filename']}`,
                 "content": `${data}`,
-                "extension": `${extension}`,
+                "extension": `${path.extname(filePath)}`,
                 "uploadedDate": `${val}`
             }).end())
         }
@@ -65,19 +79,15 @@ app.get('/api/files/:filename',(req, res) =>{
 });
 
 app.post('/api/files',(req,res)=>{
-    fs.writeFile(`${req.body.filename}`,`${req.body.content}`,(error)=>{
-        if(error){
-            if(error.code==='ENOENT'){
+    checkFolder()
+    fs.writeFile(`${filesFolder}/${req.body.filename}`,`${req.body.content}`,(error)=>{
+        if(error||req.body.filename===undefined||req.body.content===undefined){
                 res.status(400).json({
-                    "message": "Please specify 'content' parameter"
-                }).end();
-            }
-            else{
-                res.status(500).json({
-                    "message": "Server error"
-                }).end();
-            }
+                                   "message": "Params error"
+                               }).end();
+
         }else{
+        console.log(req.body.filename)
             res.status(200).json({
                 "message": "File created successfully"
             }).end();
